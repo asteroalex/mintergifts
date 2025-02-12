@@ -1,8 +1,8 @@
 import socketio
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InputFile
 from aiogram.filters import Command
+from aiogram.exceptions import TelegramForbiddenError
 
 # Создаем клиент для подключения к серверу
 sio = socketio.AsyncClient()
@@ -22,6 +22,7 @@ users_status = {}
 # Функция для обработки события 'newMint'
 @sio.event
 async def newMint(data):
+    print(f"Получены данные о новом минте: {data}")  # Логирование полученных данных
     # Извлекаем ключевые данные из сообщения
     slug = data.get('slug', 'Неизвестен')
     gift_name = data.get('gift_name', 'Неизвестен')
@@ -30,24 +31,34 @@ async def newMint(data):
 
     # Форматируем и выводим сообщение
     formatted_message = f"Новый минт - *{slug}* - *{gift_name}* - *{number}*"
-    print(formatted_message)
+    print(formatted_message)  # Логирование форматированного сообщения
 
     # Если есть изображение, отправляем по URL
     if image_preview:
         try:
             # Отправляем изображение только тем пользователям, кто не выключил обновления
-            for user_id, status in users_status.items():
+            for user_id, status in list(users_status.items()):
                 if status['status'] == 'active':  # Отправляем только активным пользователям
                     chat_id = status['chat_id']
-                    await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=formatted_message)
+                    print(f"Отправка фото пользователю {chat_id}")  # Логирование chat_id
+                    try:
+                        await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=formatted_message)
+                    except TelegramForbiddenError:
+                        print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
+                        del users_status[user_id]
         except Exception as e:
             print(f"Ошибка при отправке изображения: {e}")
     else:
         # Если изображения нет, отправляем только текст
-        for user_id, status in users_status.items():
+        for user_id, status in list(users_status.items()):
             if status['status'] == 'active':  # Отправляем только активным пользователям
                 chat_id = status['chat_id']
-                await bot.send_message(chat_id=chat_id, text=formatted_message)
+                print(f"Отправка сообщения пользователю {chat_id}")  # Логирование chat_id
+                try:
+                    await bot.send_message(chat_id=chat_id, text=formatted_message)
+                except TelegramForbiddenError:
+                    print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
+                    del users_status[user_id]
 
 # Обработчик для команды /start
 @dp.message(Command('start'))
@@ -83,6 +94,7 @@ async def connect():
 # Обработчик для получения сообщений
 @sio.event
 async def message(data):
+    print(f"Получено сообщение: {data}")  # Логирование полученного сообщения
     # Пример обработки входящего сообщения
     if isinstance(data, dict) and 'gift_name' in data and 'number' in data:
         # Извлекаем данные и форматируем их
@@ -94,17 +106,25 @@ async def message(data):
         # Если есть изображение, отправляем его по URL
         if image_preview:
             try:
-                for user_id, status in users_status.items():
+                for user_id, status in list(users_status.items()):
                     if status['status'] == 'active':  # Отправляем только активным пользователям
                         chat_id = status['chat_id']
-                        await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=formatted_message)
+                        try:
+                            await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=formatted_message)
+                        except TelegramForbiddenError:
+                            print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
+                            del users_status[user_id]
             except Exception as e:
                 print(f"Ошибка при отправке изображения: {e}")
         else:
-            for user_id, status in users_status.items():
+            for user_id, status in list(users_status.items()):
                 if status['status'] == 'active':  # Отправляем только активным пользователям
                     chat_id = status['chat_id']
-                    await bot.send_message(chat_id=chat_id, text=formatted_message)
+                    try:
+                        await bot.send_message(chat_id=chat_id, text=formatted_message)
+                    except TelegramForbiddenError:
+                        print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
+                        del users_status[user_id]
 
 # Обработчик для ошибки подключения
 @sio.event

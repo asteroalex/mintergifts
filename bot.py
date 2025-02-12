@@ -11,7 +11,7 @@ from aiogram.exceptions import TelegramForbiddenError
 sio = socketio.AsyncClient()
 
 # Токен вашего бота Telegram
-TELEGRAM_TOKEN = '8044348316:AAF_JCqYm1bZ35xDXHanoOLDTflqiqfaPyA'
+TELEGRAM_TOKEN = '8044348316:AAFLsqU_IVvxZqCqfciNyGH5_48k4rLfKwg'
 
 # Инициализируем бота
 bot = Bot(token=TELEGRAM_TOKEN)

@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 # Создаем клиент для подключения к серверу
 sio = socketio.AsyncClient()
@@ -48,14 +49,24 @@ async def newMint(data):
     gift_name = data.get('gift_name', 'Неизвестен')
     number = data.get('number', 'Неизвестен')
     image_preview = data.get('image_preview', None)
+    model = data.get('Model', 'Неизвестен')
+    backdrop = data.get('backdrop', 'Неизвестен')
+    symbol = data.get('Symbol', 'Неизвестен')
 
     # Форматируем и выводим сообщение
-    formatted_message = f"Новый минт - *{slug}* - *{gift_name}* - *{number}*"
+    formatted_message = (f"Новый минт - *{slug}* - *{gift_name}* - *{number}*\n\n"
+                         f"Model: {model}\n"
+                         f"Backdrop: {backdrop}\n"
+                         f"Symbol: {symbol}")
     print(formatted_message)  # Логирование форматированного сообщения
 
-    await send_message_to_users(formatted_message, image_preview)
+    # Создаем инлайн-кнопку
+    button_url = f"https://t.me/nft/{slug}-{number}"
+    inline_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="See owner 👑", url=button_url)]])
 
-async def send_message_to_users(message, image_preview):
+    await send_message_to_users(formatted_message, image_preview, inline_kb)
+
+async def send_message_to_users(message, image_preview, inline_kb=None):
     # Если есть изображение, отправляем по URL
     if image_preview:
         for user_id, status in list(users_status.items()):
@@ -63,7 +74,7 @@ async def send_message_to_users(message, image_preview):
                 chat_id = status['chat_id']
                 print(f"Отправка фото пользователю {chat_id}")  # Логирование chat_id
                 try:
-                    await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=message)
+                    await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=message, reply_markup=inline_kb)
                 except TelegramRetryAfter as e:
                     print(f"Ошибка при отправке изображения: {e}")
                     await asyncio.sleep(e.retry_after)
@@ -78,7 +89,7 @@ async def send_message_to_users(message, image_preview):
                 chat_id = status['chat_id']
                 print(f"Отправка сообщения пользователю {chat_id}")  # Логирование chat_id
                 try:
-                    await bot.send_message(chat_id=chat_id, text=message)
+                    await bot.send_message(chat_id=chat_id, text=message, reply_markup=inline_kb)
                 except TelegramRetryAfter as e:
                     print(f"Ошибка при отправке сообщения: {e}")
                     await asyncio.sleep(e.retry_after)
@@ -200,6 +211,30 @@ async def allalert_message_received(message: types.Message, state: FSMContext):
                 print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
     await state.clear()
 
+# Обработчик для команды /updateserver
+@dp.message(Command('updateserver'))
+async def updateserver_command(message: types.Message):
+    # Проверяем, является ли пользователь администратором (замените на свои ID)
+    if message.from_user.id in [1267171169, 6695944947]:
+        print("Попытка переподключения к серверу по запросу администратора...")
+        await message.reply("Попытка переподключения к серверу...")
+        await reconnect_to_server()
+        await message.reply("Переподключение выполнено.")
+    else:
+        await message.reply("You do not have permission to update the server connection.")
+
+# Обработчик для команды /downserver
+@dp.message(Command('downserver'))
+async def downserver_command(message: types.Message):
+    # Проверяем, является ли пользователь администратором (замените на свои ID)
+    if message.from_user.id in [1267171169, 6695944947]:
+        print("Попытка отключения от сервера по запросу администратора...")
+        await message.reply("Попытка отключения от сервера...")
+        await disconnect_from_server()
+        await message.reply("Отключение выполнено.")
+    else:
+        await message.reply("You do not have permission to disconnect the server.")
+
 # Обработчик для общего события
 @sio.event
 async def connect():
@@ -214,10 +249,22 @@ async def message(data):
         # Извлекаем данные и форматируем их
         gift_name = data.get('gift_name', 'Неизвестен')
         number = data.get('number', 'Неизвестен')
+        model = data.get('Model', 'Неизвестен')
+        backdrop = data.get('backdrop', 'Неизвестен')
+        symbol = data.get('Symbol', 'Неизвестен')
         image_preview = data.get('image_preview', None)
-        formatted_message = f"New mint - {gift_name} - #{number}"
+        formatted_message = (
+            f"🎁 New mint - {gift_name} - #{number}\n\n"
+            f"Model: {model}\n"
+            f"Backdrop: {backdrop}\n"
+            f"Symbol: {symbol}"
+        )
 
-        await send_message_to_users(formatted_message, image_preview)
+        # Создаем инлайн-кнопку
+        button_url = f"https://t.me/nft/{gift_name}-{number}"
+        inline_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="See owner 👑", url=button_url)]])
+
+        await send_message_to_users(formatted_message, image_preview, inline_kb)
 
 @sio.event
 async def connect_error(data):
@@ -230,13 +277,18 @@ async def disconnect():
 
 async def reconnect_to_server():
     while not sio.connected:
-        print("Попытка переподключения через 30 секунд...")
-        await asyncio.sleep(30)
+        print("Попытка переподключения через 5 секунд...")
+        await asyncio.sleep(5)
         try:
             await sio.connect('https://gsocket.trump.tg')
             print("Подключение успешно!")
         except Exception as e:
             print(f"Ошибка при переподключении: {e}")
+
+async def disconnect_from_server():
+    if sio.connected:
+        await sio.disconnect()
+        print("Отключение от сервера выполнено.")
 
 async def connect_to_server():
     try:

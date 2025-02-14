@@ -272,8 +272,8 @@ async def disconnect():
 
 async def reconnect_to_server():
     while not sio.connected:
-        print("Попытка переподключения через 5 секунд...")
-        await asyncio.sleep(5)
+        print("Попытка переподключения через 30 секунд...")
+        await asyncio.sleep(30)
         try:
             await sio.connect('https://gsocket.trump.tg')
             print("Подключение успешно!")

@@ -5,14 +5,14 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
+from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter, TelegramAPIError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 # Создаем клиент для подключения к серверу
 sio = socketio.AsyncClient()
 
 # Токен вашего бота Telegram
-TELEGRAM_TOKEN = '8044348316:AAFLsqU_IVvxZqCqfciNyGH5_48k4rLfKwg'
+TELEGRAM_TOKEN = '8133398219:AAHm9q7rIaNf1ovb6TY4hdpMNuzWPPsumc4'
 
 # Инициализируем бота
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -24,10 +24,13 @@ dp = Dispatcher(storage=MemoryStorage())
 users_status = {}
 
 # Список разрешенных пользователей
-allowed_users = set()
+allowed_users = set([1267171169, 6695944947])
 
 # Список всех пользователей с доступом (ID и имя пользователя)
 all_users = {}
+
+# Переменная для хранения состояния отправки сообщений с фото или без
+send_with_photo = True
 
 # Состояния для FSM (Finite State Machine)
 class AlertStates(StatesGroup):
@@ -67,8 +70,8 @@ async def newMint(data):
     await send_message_to_users(formatted_message, image_preview, inline_kb)
 
 async def send_message_to_users(message, image_preview, inline_kb=None):
-    # Если есть изображение, отправляем по URL
-    if image_preview:
+    global send_with_photo
+    if send_with_photo and image_preview:
         for user_id, status in list(users_status.items()):
             if status['status'] == 'active':  # Отправляем только активным пользователям
                 chat_id = status['chat_id']
@@ -81,6 +84,12 @@ async def send_message_to_users(message, image_preview, inline_kb=None):
                 except TelegramForbiddenError:
                     print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
                     del users_status[user_id]
+                except TelegramAPIError as e:
+                    if "Flood control exceeded" in str(e):
+                        print(f"Ошибка при отправке изображения: Telegram server says - {e}")
+                        await send_message_to_users(message, None, inline_kb)
+                    else:
+                        print(f"Ошибка при отправке изображения: {e}")
                 except Exception as e:
                     print(f"Ошибка при отправке изображения: {e}")
     else:
@@ -235,6 +244,26 @@ async def downserver_command(message: types.Message):
     else:
         await message.reply("You do not have permission to disconnect the server.")
 
+# Обработчик для команды /withoutfoto
+@dp.message(Command('withoutfoto'))
+async def withoutfoto_command(message: types.Message):
+    global send_with_photo
+    if message.from_user.id in [1267171169, 6695944947]:
+        send_with_photo = False
+        await message.reply("Now all messages will be sent without photos.")
+    else:
+        await message.reply("You do not have permission to change the photo sending settings.")
+
+# Обработчик для команды /withfoto
+@dp.message(Command('withfoto'))
+async def withfoto_command(message: types.Message):
+    global send_with_photo
+    if message.from_user.id in [1267171169, 6695944947]:
+        send_with_photo = True
+        await message.reply("Now all messages will be sent with photos.")
+    else:
+        await message.reply("You do not have permission to change the photo sending settings.")
+
 # Обработчик для общего события
 @sio.event
 async def connect():
@@ -277,8 +306,8 @@ async def disconnect():
 
 async def reconnect_to_server():
     while not sio.connected:
-        print("Попытка переподключения через 5 секунд...")
-        await asyncio.sleep(5)
+        print("Попытка переподключения через 30 секунд...")
+        await asyncio.sleep(30)
         try:
             await sio.connect('https://gsocket.trump.tg')
             print("Подключение успешно!")

@@ -118,14 +118,18 @@ async def addtgid_command(message: types.Message):
     # Проверяем, является ли пользователь администратором (замените на свой ID)
     if message.from_user.id == 1267171169:  # Замените на ваш Telegram ID
         try:
-            new_user_id = int(message.text.split()[1])
-            allowed_users.add(new_user_id)
-            # Получаем username нового пользователя
-            new_user = await bot.get_chat(new_user_id)
-            all_users[new_user_id] = new_user.username
-            await message.reply(f"User with ID {new_user_id} has been granted access.")
+            user_ids = message.text.split()[1:]
+            added_users = []
+            for user_id in user_ids:
+                new_user_id = int(user_id)
+                allowed_users.add(new_user_id)
+                # Получаем username нового пользователя
+                new_user = await bot.get_chat(new_user_id)
+                all_users[new_user_id] = new_user.username
+                added_users.append(f"{new_user_id} (@{new_user.username})")
+            await message.reply(f"Users with IDs {', '.join(added_users)} have been granted access.")
         except (IndexError, ValueError):
-            await message.reply("Please provide a valid Telegram user ID.")
+            await message.reply("Please provide valid Telegram user IDs.")
         except Exception as e:
             await message.reply(f"An error occurred: {e}")
     else:

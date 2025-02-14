@@ -202,7 +202,7 @@ async def connect():
 async def message(data):
     print(f"Получено сообщение: {data}")  # Логирование полученного сообщения
     # Пример обработки входящего сообщения
-    if isinstance(data, dict) и 'gift_name' in data и 'number' in data:
+    if isinstance(data, dict) and 'gift_name' in data and 'number' in data:
         # Извлекаем данные и форматируем их
         gift_name = data.get('gift_name', 'Неизвестен')
         number = data.get('number', 'Неизвестен')
@@ -212,7 +212,7 @@ async def message(data):
         # Если есть изображение, отправляем его по URL
         if image_preview:
             try:
-                for user_id, status в list(users_status.items()):
+                for user_id, status in list(users_status.items()):
                     if status['status'] == 'active':  # Отправляем только активным пользователям
                         chat_id = status['chat_id']
                         try:
@@ -220,10 +220,10 @@ async def message(data):
                         except TelegramForbiddenError:
                             print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
                             del users_status[user_id]
-            except Exception как e:
+            except Exception as e:
                 print(f"Ошибка при отправке изображения: {e}")
         else:
-            for user_id, status в list(users_status.items()):
+            for user_id, status in list(users_status.items()):
                 if status['status'] == 'active':
                     chat_id = status['chat_id']
                     try:

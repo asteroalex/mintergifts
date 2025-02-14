@@ -226,12 +226,15 @@ async def connect_error(data):
 @sio.event
 async def disconnect():
     print("Отключено от сервера")
-    # Попытка переподключения каждые 30 секунд
+    await reconnect_to_server()
+
+async def reconnect_to_server():
     while not sio.connected:
         print("Попытка переподключения через 30 секунд...")
         await asyncio.sleep(30)
         try:
             await sio.connect('https://gsocket.trump.tg')
+            print("Подключение успешно!")
         except Exception as e:
             print(f"Ошибка при переподключении: {e}")
 

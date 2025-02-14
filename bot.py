@@ -29,9 +29,6 @@ allowed_users = set([1267171169, 6695944947])
 # Список всех пользователей с доступом (ID и имя пользователя)
 all_users = {}
 
-# Переменная для хранения состояния отправки сообщений с фото или без
-send_with_photo = True
-
 # Состояния для FSM (Finite State Machine)
 class AlertStates(StatesGroup):
     waiting_for_message = State()
@@ -67,46 +64,23 @@ async def newMint(data):
     button_url = f"https://t.me/nft/{slug}-{number}"
     inline_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="See owner 👑", url=button_url)]])
 
-    await send_message_to_users(formatted_message, image_preview, inline_kb)
+    await send_message_to_users(formatted_message, inline_kb)
 
-async def send_message_to_users(message, image_preview, inline_kb=None):
-    global send_with_photo
-    if send_with_photo and image_preview:
-        for user_id, status in list(users_status.items()):
-            if status['status'] == 'active':  # Отправляем только активным пользователям
-                chat_id = status['chat_id']
-                print(f"Отправка фото пользователю {chat_id}")  # Логирование chat_id
-                try:
-                    await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=message, reply_markup=inline_kb)
-                except TelegramRetryAfter as e:
-                    print(f"Ошибка при отправке изображения: {e}")
-                    await asyncio.sleep(e.retry_after)
-                except TelegramForbiddenError:
-                    print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
-                    del users_status[user_id]
-                except TelegramAPIError as e:
-                    if "Flood control exceeded" in str(e):
-                        print(f"Ошибка при отправке изображения: Telegram server says - {e}")
-                        await send_message_to_users(message, None, inline_kb)
-                    else:
-                        print(f"Ошибка при отправке изображения: {e}")
-                except Exception as e:
-                    print(f"Ошибка при отправке изображения: {e}")
-    else:
-        for user_id, status in list(users_status.items()):
-            if status['status'] == 'active':  # Отправляем только активным пользователям
-                chat_id = status['chat_id']
-                print(f"Отправка сообщения пользователю {chat_id}")  # Логирование chat_id
-                try:
-                    await bot.send_message(chat_id=chat_id, text=message, reply_markup=inline_kb)
-                except TelegramRetryAfter as e:
-                    print(f"Ошибка при отправке сообщения: {e}")
-                    await asyncio.sleep(e.retry_after)
-                except TelegramForbiddenError:
-                    print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
-                    del users_status[user_id]
-                except Exception as e:
-                    print(f"Ошибка при отправке сообщения: {e}")
+async def send_message_to_users(message, inline_kb=None):
+    for user_id, status in list(users_status.items()):
+        if status['status'] == 'active':  # Отправляем только активным пользователям
+            chat_id = status['chat_id']
+            print(f"Отправка сообщения пользователю {chat_id}")  # Логирование chat_id
+            try:
+                await bot.send_message(chat_id=chat_id, text=message, reply_markup=inline_kb)
+            except TelegramRetryAfter as e:
+                print(f"Ошибка при отправке сообщения: {e}")
+                await asyncio.sleep(e.retry_after)
+            except TelegramForbiddenError:
+                print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
+                del users_status[user_id]
+            except Exception as e:
+                print(f"Ошибка при отправке сообщения: {e}")
 
 # Обработчик для команды /start
 @dp.message(Command('start'))
@@ -244,26 +218,6 @@ async def downserver_command(message: types.Message):
     else:
         await message.reply("You do not have permission to disconnect the server.")
 
-# Обработчик для команды /withoutfoto
-@dp.message(Command('withoutfoto'))
-async def withoutfoto_command(message: types.Message):
-    global send_with_photo
-    if message.from_user.id in [1267171169, 6695944947]:
-        send_with_photo = False
-        await message.reply("Now all messages will be sent without photos.")
-    else:
-        await message.reply("You do not have permission to change the photo sending settings.")
-
-# Обработчик для команды /withfoto
-@dp.message(Command('withfoto'))
-async def withfoto_command(message: types.Message):
-    global send_with_photo
-    if message.from_user.id in [1267171169, 6695944947]:
-        send_with_photo = True
-        await message.reply("Now all messages will be sent with photos.")
-    else:
-        await message.reply("You do not have permission to change the photo sending settings.")
-
 # Обработчик для общего события
 @sio.event
 async def connect():
@@ -293,7 +247,7 @@ async def message(data):
         button_url = f"https://t.me/nft/{gift_name}-{number}"
         inline_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="See owner 👑", url=button_url)]])
 
-        await send_message_to_users(formatted_message, image_preview, inline_kb)
+        await send_message_to_users(formatted_message, inline_kb)
 
 @sio.event
 async def connect_error(data):

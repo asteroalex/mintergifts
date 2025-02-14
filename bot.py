@@ -6,6 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.exceptions import TelegramForbiddenError
+from collections import deque
 
 # Создаем клиент для подключения к серверу
 sio = socketio.AsyncClient()
@@ -27,6 +28,10 @@ allowed_users = set()
 
 # Список всех пользователей с доступом (ID и имя пользователя)
 all_users = {}
+
+# Очередь для сообщений
+message_queue = deque()
+sending_messages = False
 
 # Состояния для FSM (Finite State Machine)
 class AlertStates(StatesGroup):
@@ -53,6 +58,22 @@ async def newMint(data):
     formatted_message = f"Новый минт - *{slug}* - *{gift_name}* - *{number}*"
     print(formatted_message)  # Логирование форматированного сообщения
 
+    # Добавляем сообщение в очередь
+    message_queue.append((formatted_message, image_preview))
+    await process_queue()
+
+async def process_queue():
+    global sending_messages
+    if sending_messages:
+        return
+    sending_messages = True
+    while message_queue:
+        message, image_preview = message_queue.popleft()
+        await send_message_to_users(message, image_preview)
+        await asyncio.sleep(1.5)
+    sending_messages = False
+
+async def send_message_to_users(message, image_preview):
     # Если есть изображение, отправляем по URL
     if image_preview:
         try:
@@ -62,7 +83,7 @@ async def newMint(data):
                     chat_id = status['chat_id']
                     print(f"Отправка фото пользователю {chat_id}")  # Логирование chat_id
                     try:
-                        await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=formatted_message)
+                        await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=message)
                     except TelegramForbiddenError:
                         print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
                         del users_status[user_id]
@@ -75,7 +96,7 @@ async def newMint(data):
                 chat_id = status['chat_id']
                 print(f"Отправка сообщения пользователю {chat_id}")  # Логирование chat_id
                 try:
-                    await bot.send_message(chat_id=chat_id, text=formatted_message)
+                    await bot.send_message(chat_id=chat_id, text=message)
                 except TelegramForbiddenError:
                     print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
                     del users_status[user_id]
@@ -209,28 +230,9 @@ async def message(data):
         image_preview = data.get('image_preview', None)
         formatted_message = f"New mint - {gift_name} - #{number}"
 
-        # Если есть изображение, отправляем его по URL
-        if image_preview:
-            try:
-                for user_id, status in list(users_status.items()):
-                    if status['status'] == 'active':  # Отправляем только активным пользователям
-                        chat_id = status['chat_id']
-                        try:
-                            await bot.send_photo(chat_id=chat_id, photo=image_preview, caption=formatted_message)
-                        except TelegramForbiddenError:
-                            print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
-                            del users_status[user_id]
-            except Exception as e:
-                print(f"Ошибка при отправке изображения: {e}")
-        else:
-            for user_id, status in list(users_status.items()):
-                if status['status'] == 'active':
-                    chat_id = status['chat_id']
-                    try:
-                        await bot.send_message(chat_id=chat_id, text=formatted_message)
-                    except TelegramForbiddenError:
-                        print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
-                        del users_status[user_id]
+        # Добавляем сообщение в очередь
+        message_queue.append((formatted_message, image_preview))
+        await process_queue()
 
 @sio.event
 async def connect_error(data):

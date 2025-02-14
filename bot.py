@@ -7,6 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter, TelegramAPIError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from collections import deque
 
 # Создаем клиент для подключения к серверу
 sio = socketio.AsyncClient()
@@ -28,6 +29,10 @@ allowed_users = set([1267171169, 6695944947])
 
 # Список всех пользователей с доступом (ID и имя пользователя)
 all_users = {}
+
+# Очередь для сообщений и замок для управления доступом к очереди
+message_queue = deque()
+queue_lock = asyncio.Lock()
 
 # Состояния для FSM (Finite State Machine)
 class AlertStates(StatesGroup):
@@ -64,23 +69,29 @@ async def newMint(data):
     button_url = f"https://t.me/nft/{slug}-{number}"
     inline_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="See owner 👑", url=button_url)]])
 
-    await send_message_to_users(formatted_message, inline_kb)
+    async with queue_lock:
+        message_queue.append((formatted_message, inline_kb))
 
-async def send_message_to_users(message, inline_kb=None):
-    for user_id, status in list(users_status.items()):
-        if status['status'] == 'active':  # Отправляем только активным пользователям
-            chat_id = status['chat_id']
-            print(f"Отправка сообщения пользователю {chat_id}")  # Логирование chat_id
-            try:
-                await bot.send_message(chat_id=chat_id, text=message, reply_markup=inline_kb)
-            except TelegramRetryAfter as e:
-                print(f"Ошибка при отправке сообщения: {e}")
-                await asyncio.sleep(e.retry_after)
-            except TelegramForbiddenError:
-                print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
-                del users_status[user_id]
-            except Exception as e:
-                print(f"Ошибка при отправке сообщения: {e}")
+async def send_message_to_users():
+    while True:
+        await asyncio.sleep(1.5)
+        async with queue_lock:
+            if message_queue:
+                message, inline_kb = message_queue.popleft()
+                for user_id, status in list(users_status.items()):
+                    if status['status'] == 'active':  # Отправляем только активным пользователям
+                        chat_id = status['chat_id']
+                        print(f"Отправка сообщения пользователю {chat_id}")  # Логирование chat_id
+                        try:
+                            await bot.send_message(chat_id=chat_id, text=message, reply_markup=inline_kb)
+                        except TelegramRetryAfter as e:
+                            print(f"Ошибка при отправке сообщения: {e}")
+                            await asyncio.sleep(e.retry_after)
+                        except TelegramForbiddenError:
+                            print(f"Пользователь {chat_id} заблокировал бота или удалил чат с ботом")
+                            del users_status[user_id]
+                        except Exception as e:
+                            print(f"Ошибка при отправке сообщения: {e}")
 
 # Обработчик для команды /start
 @dp.message(Command('start'))
@@ -247,7 +258,8 @@ async def message(data):
         button_url = f"https://t.me/nft/{gift_name}-{number}"
         inline_kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="See owner 👑", url=button_url)]])
 
-        await send_message_to_users(formatted_message, inline_kb)
+        async with queue_lock:
+            message_queue.append((formatted_message, inline_kb))
 
 @sio.event
 async def connect_error(data):
@@ -260,8 +272,8 @@ async def disconnect():
 
 async def reconnect_to_server():
     while not sio.connected:
-        print("Попытка переподключения через 30 секунд...")
-        await asyncio.sleep(30)
+        print("Попытка переподключения через 5 секунд...")
+        await asyncio.sleep(5)
         try:
             await sio.connect('https://gsocket.trump.tg')
             print("Подключение успешно!")
@@ -283,6 +295,7 @@ async def connect_to_server():
 
 async def main():
     await connect_to_server()
+    asyncio.create_task(send_message_to_users())
     await dp.start_polling(bot)
 
 if __name__ == '__main__':

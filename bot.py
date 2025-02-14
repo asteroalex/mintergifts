@@ -12,7 +12,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 sio = socketio.AsyncClient()
 
 # Токен вашего бота Telegram
-TELEGRAM_TOKEN = '8133398219:AAHm9q7rIaNf1ovb6TY4hdpMNuzWPPsumc4'
+TELEGRAM_TOKEN = '8044348316:AAFLsqU_IVvxZqCqfciNyGH5_48k4rLfKwg'
 
 # Инициализируем бота
 bot = Bot(token=TELEGRAM_TOKEN)

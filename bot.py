@@ -25,7 +25,7 @@ dp = Dispatcher(storage=MemoryStorage())
 users_status = {}
 
 # Список разрешенных пользователей
-allowed_users = set([1267171169, 6695944947])
+allowed_users = set()
 
 # Список всех пользователей с доступом (ID и имя пользователя)
 all_users = {}
@@ -93,19 +93,29 @@ async def send_message_to_users():
                         except Exception as e:
                             print(f"Ошибка при отправке сообщения: {e}")
 
+# Функция для остановки уведомлений через 10 минут
+async def stop_notifications(user_id):
+    await asyncio.sleep(600)  # Ждем 10 минут
+    if user_id in users_status and users_status[user_id]['status'] == 'active':
+        users_status[user_id]['status'] = 'inactive'
+        chat_id = users_status[user_id]['chat_id']
+        await bot.send_message(chat_id=chat_id, text="""Notification of new mints has been stopped.
+
+Send the /start command to receive notifications again for the next 10 minutes.""")
+
 # Обработчик для команды /start
 @dp.message(Command('start'))
 async def start_command(message: types.Message):
     if has_access(message.from_user.id):
         # Сохраняем chat_id пользователя и устанавливаем статус 'active' (получает сообщения)
         users_status[message.from_user.id] = {'chat_id': message.chat.id, 'status': 'active'}
-        await message.reply("""Hello! I’m a bot that helps you stay updated on new gift mints. You will now receive a notification about each new gift mint.
+        await message.reply("""Receiving notifications of new mints is enabled for the next 10 minutes.
 
-To pause notifications about mints, send the command - /stop
+Subscribe to our news channel @TGGiftsNews to receive notifications of new gifts.
 
-Subscribe to our news channel so you don’t miss the latest bot update - @GiftsMinter
-
-Our channel with notifications about new gift releases - @TGGiftsNews""")
+Bot news channel: @GiftsMinter""")
+        # Запускаем таймер на остановку уведомлений через 10 минут
+        asyncio.create_task(stop_notifications(message.from_user.id))
     else:
         await message.reply("You do not have access to this bot. Please purchase access from @BuyGiftsMinterBot.")
 

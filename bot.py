@@ -74,7 +74,7 @@ async def newMint(data):
 
 async def send_message_to_users():
     while True:
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(1)
         async with queue_lock:
             if message_queue:
                 message, inline_kb = message_queue.popleft()
@@ -93,9 +93,9 @@ async def send_message_to_users():
                         except Exception as e:
                             print(f"Ошибка при отправке сообщения: {e}")
 
-# Функция для остановки уведомлений через 10 минут
+# Функция для остановки уведомлений через 5 минут
 async def stop_notifications(user_id):
-    await asyncio.sleep(600)  # Ждем 10 минут
+    await asyncio.sleep(300)  # Ждем 5 минут
     if user_id in users_status and users_status[user_id]['status'] == 'active':
         users_status[user_id]['status'] = 'inactive'
         chat_id = users_status[user_id]['chat_id']
@@ -109,7 +109,7 @@ async def start_command(message: types.Message):
     if has_access(message.from_user.id):
         # Сохраняем chat_id пользователя и устанавливаем статус 'active' (получает сообщения)
         users_status[message.from_user.id] = {'chat_id': message.chat.id, 'status': 'active'}
-        await message.reply("""Receiving notifications of new mints is enabled for the next 10 minutes.
+        await message.reply("""Receiving notifications of new mints is enabled for the next 5 minutes.
 
 Subscribe to our news channel @TGGiftsNews to receive notifications of new gifts.
 

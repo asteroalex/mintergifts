@@ -150,7 +150,7 @@ async def start_command(message: types.Message):
         if is_vip(message.from_user.id):
             remaining_notifications_text = "You have unlimited notifications, thank you for purchasing VIP status."
         else:
-            remaining_notifications_text = f"Your remaining notifications for mints today: {remaining_notifications}\n\nNotifications will be restored after 24 hours."
+            remaining_notifications_text = f"Your remaining notifications for mints today: {remaining_notifications}\n\nNotifications will be restored after 24 hours.\n\nBuy VIP status here: @BuyVIPMinterBot"
         await message.reply(f"""Receiving notifications of new mints is enabled for the next 5 minutes.
 
 {remaining_notifications_text}

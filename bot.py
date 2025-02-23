@@ -488,6 +488,27 @@ async def message(data):
         async with queue_lock:
             message_queue.append((formatted_message, gift_name, image_preview))
 
+# Команда для перезапуска подключения к серверу Socket.IO
+@dp.message(Command('updateserver'))
+async def updateserver_command(message: types.Message):
+    # Проверяем, является ли пользователь администратором (замените на свой ID)
+    if message.from_user.id == 1267171169:  # Замените на ваш Telegram ID
+        await disconnect_from_server()
+        await connect_to_server()
+        await message.reply("Подключение к серверу обновлено.")
+    else:
+        await message.reply("У вас нет прав для выполнения этой команды.")
+
+# Команда для отключения от сервера Socket.IO
+@dp.message(Command('downserver'))
+async def downserver_command(message: types.Message):
+    # Проверяем, является ли пользователь администратором (замените на свой ID)
+    if message.from_user.id == 1267171169:  # Замените на ваш Telegram ID
+        await disconnect_from_server()
+        await message.reply("Отключено от сервера.")
+    else:
+        await message.reply("У вас нет прав для выполнения этой команды.")
+
 @sio.event
 async def connect_error(data):
     print("Ошибка подключения:", data)

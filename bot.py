@@ -2,9 +2,9 @@ import socketio
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter, TelegramAPIError
+from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 from collections import deque
 from datetime import datetime, timedelta
 
@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 sio = socketio.AsyncClient()
 
 # Токен вашего бота Telegram
-TELEGRAM_TOKEN = '8044348316:AAFLsqU_IVvxZqCqfciNyGH5_48k4rLfKwg'
+TELEGRAM_TOKEN = '8133398219:AAHm9q7rIaNf1ovb6TY4hdpMNuzWPPsumc4'
 
 # Инициализируем бота
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -49,13 +49,20 @@ users_last_reset_time = {}
 # Изначальное количество уведомлений
 INITIAL_NOTIFICATIONS = 1000
 
+# Количество уведомлений для пробного плана
+TRIAL_NOTIFICATIONS = 15
+
 # Функция для проверки доступа
 def has_access(user_id):
-    return user_id in allowed_users
+    return user_id in allowed_users or user_id in vip_users
 
 # Функция для проверки VIP статуса
 def is_vip(user_id):
     return user_id in vip_users
+
+# Функция для проверки пробного плана
+def is_trial(user_id):
+    return user_id not in allowed_users and user_id not in vip_users
 
 async def restore_notifications():
     while True:
@@ -63,18 +70,21 @@ async def restore_notifications():
         for user_id, last_reset_time in list(users_last_reset_time.items()):
             if not is_vip(user_id):
                 if datetime.now() - last_reset_time >= timedelta(hours=24):
-                    users_notifications_left[user_id] = INITIAL_NOTIFICATIONS
+                    users_notifications_left[user_id] = INITIAL_NOTIFICATIONS if has_access(user_id) else TRIAL_NOTIFICATIONS
                     users_last_reset_time[user_id] = datetime.now()
 
 async def deduct_notification(user_id):
     if not is_vip(user_id):
         if user_id not in users_notifications_left:
-            users_notifications_left[user_id] = INITIAL_NOTIFICATIONS
+            users_notifications_left[user_id] = INITIAL_NOTIFICATIONS if has_access(user_id) else TRIAL_NOTIFICATIONS
         users_notifications_left[user_id] -= 1
         if users_notifications_left[user_id] <= 0:
             users_status[user_id]['status'] = 'inactive'
             chat_id = users_status[user_id]['chat_id']
-            await bot.send_message(chat_id=chat_id, text="""⭐ Ваш запас уведомлений на сегодня исчерпан!
+            if is_trial(user_id):
+                await bot.send_message(chat_id=chat_id, text="""Ваш пробный план исчерпан! Вам необходимо приобрести доступ к боту чтобы снова им пользоваться - @BuyGiftsMinterBot""")
+            else:
+                await bot.send_message(chat_id=chat_id, text="""⭐ Ваш запас уведомлений на сегодня исчерпан!
 
 Возвращайтесь завтра, чтобы получить 1000 уведомлений, или же приобретите VIP статус чтобы получить доступ к безграничному использованию бота
 
@@ -141,43 +151,39 @@ async def stop_notifications(user_id):
     if user_id in users_status and users_status[user_id]['status'] == 'active':
         users_status[user_id]['status'] = 'inactive'
         chat_id = users_status[user_id]['chat_id']
-        await bot.send_message(chat_id=chat_id, text=f"""🔔 Получение уведомлений с фильтром *{users_status[user_id]['filter']}* остановлено!
-
-Запустите фильтр еще раз, либо включите получение всех уведомлений через главное меню.""")
+        await bot.send_message(chat_id=chat_id, text=f"""❌ Фильтр уведомлений отключен. Включите уведомления еще раз в главном меню, или выберите нужный вам подарок через фильтры""")
 
 # Обработчик для команды /start
 @dp.message(Command('start'))
 async def start_command(message: types.Message):
-    if has_access(message.from_user.id):
-        if is_vip(message.from_user.id):
-            start_message = """Gifts Minter готов к вашим услугам!
+    if is_vip(message.from_user.id):
+        start_message = """Gifts Minter готов к вашим услугам!
 
 В VIP плане у вас открыт доступ к абсолютно всем функциям бота. Спасибо за оформление VIP статуса!"""
-        else:
-            start_message = """Gifts Minter готов к вашим услугам!
+    elif has_access(message.from_user.id):
+        start_message = """Gifts Minter готов к вашим услугам!
 
 В базовом тарифе вам доступно получение уведомлений о новых минтах (до 1000 уведомлений в день)
 
 Чтобы получить безлимитное получение уведомлений и доступ к поиску подарков по номеру - перейдите на VIP план за 75 звезд
 
 Купить VIP статус - @BuyVIPMinterBot"""
-
-        notification_button_text = "❌ Отключить уведомления" if users_status.get(message.from_user.id, {}).get('status') == 'active' else "✅ Включить уведомления"
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=notification_button_text, callback_data="toggle_notifications")],
-            [InlineKeyboardButton(text="🔔 Настроить уведомления", callback_data="configure_notifications")],
-            [InlineKeyboardButton(text="🔍 Искать подарки", callback_data="search_gifts")],
-            [InlineKeyboardButton(text="👤 Профиль", callback_data="profile"),
-             InlineKeyboardButton(text="🔗 Реф. система", callback_data="referral_system")]
-        ])
-        sent_message = await message.reply(start_message, reply_markup=keyboard)
-        users_status[message.from_user.id] = {'chat_id': message.chat.id, 'status': users_status.get(message.from_user.id, {}).get('status', 'inactive'), 'message_id': sent_message.message_id}
     else:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Приобрести доступ", url="https://t.me/buygiftsminterbot")]
-        ])
-        await message.reply("""Чтобы пользоваться ботом - приобретите доступ в @BuyGiftsMinterBot
-В чем смысл бота и как он работает читайте здесь: https://telegra.ph/Gifts-Minter-02-22""", reply_markup=keyboard)
+        start_message = f"""Добро пожаловать в Gifts Minter!
+
+На данный момент у вас включен пробный план, который дает доступ взглянуть на работу бота
+
+У вас осталось {users_notifications_left.get(message.from_user.id, TRIAL_NOTIFICATIONS)} уведомлений, купите полный доступ к боту здесь - @BuyGiftsMinterBot"""
+
+    notification_button_text = "❌ Отключить уведомления" if users_status.get(message.from_user.id, {}).get('status') == 'active' else "✅ Включить уведомления"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=notification_button_text, callback_data="toggle_notifications")],
+        [InlineKeyboardButton(text="🔔 Фильтр уведомлений", callback_data="configure_notifications")],
+        [InlineKeyboardButton(text="🔍 Искать подарки", callback_data="search_gifts")],
+        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")]
+    ])
+    sent_message = await message.reply(start_message, reply_markup=keyboard)
+    users_status[message.from_user.id] = {'chat_id': message.chat.id, 'status': users_status.get(message.from_user.id, {}).get('status', 'inactive'), 'message_id': sent_message.message_id}
 
 # Обработчик для кнопки "Включить/Отключить уведомления"
 @dp.callback_query(lambda c: c.data == 'toggle_notifications')
@@ -187,13 +193,9 @@ async def toggle_notifications_callback(callback_query: types.CallbackQuery):
         users_status[user_id]['status'] = 'inactive'
         await bot.send_message(chat_id=user_id, text="❌ Уведомления отключены\n\nЕсли захотите включить их повторно - вернитесь в Главное меню и запустите их")
     else:
-        remaining_notifications = users_notifications_left.get(user_id, INITIAL_NOTIFICATIONS)
+        remaining_notifications = users_notifications_left.get(user_id, TRIAL_NOTIFICATIONS if is_trial(user_id) else INITIAL_NOTIFICATIONS)
         if remaining_notifications <= 0:
-            await bot.send_message(chat_id=user_id, text="""❌ Ваш баланс уведомлений на сегодня исчерпан!
-
-Возвращайтесь завтра, чтобы получить 1000 уведомлений, или же приобретите VIP статус чтобы получить доступ к безграничному использованию бота
-
-Купить VIP - @BuyVIPMinterBot""")
+            await bot.send_message(chat_id=user_id, text="""Ваш пробный план исчерпан! Вам необходимо приобрести доступ к боту чтобы снова им пользоваться - @BuyGiftsMinterBot""")
         else:
             users_status[user_id]['status'] = 'active'
             await bot.send_message(chat_id=user_id, text="✅ Получение уведомлений о всех новых минтах включено на следующие 5 минут!")
@@ -271,7 +273,12 @@ async def configure_notifications_callback(callback_query: types.CallbackQuery):
 /TopHat
 /SleighBell
 /RecordPlayer
-/SakuraFlower""", reply_markup=keyboard)
+/SakuraFlower
+🆕 /SnowGlobe
+🆕 /WinterWreath
+🆕 /TamaGadget
+🆕 /CandyCane
+🆕 /ElectricSkull""", reply_markup=keyboard)
         else:
             keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")]])
             await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
@@ -289,7 +296,7 @@ def create_gift_command(gift_name):
                 return
             # Сохраняем chat_id пользователя и устанавливаем статус 'active' с фильтром gift_name
             users_status[message.from_user.id] = {'chat_id': message.chat.id, 'status': 'active', 'filter': gift_name}
-            await message.reply(f"""🔔 Фильтр уведомлений установлен на подарок с названием *{gift_name}* на следующие 5 минут""")
+            await message.reply(f"""✅ Фильтр уведомлений успешно включен для подарка *{gift_name}* на следующие 5 минут""")
             # Запускаем таймер на остановку уведомлений через 5 минут
             if message.from_user.id in stop_timers:
                 stop_timers[message.from_user.id].cancel()
@@ -305,7 +312,8 @@ gift_names = [
     "JesterHat", "WitchHat", "HangingStar", "LoveCandle", "CookieHeart", "DeskCalendar", "JingleBells", "SnowMittens",
     "VoodooDoll", "MadPumpkin", "HypnoLollipop", "BDayCandle", "BunnyMuffin", "AstralShard", "FlyingBroom", "CrystalBall",
     "EternalCandle", "SwissWatch", "GingerCookie", "MiniOscar", "LolPop", "IonGem", "StarNotepad", "LootBag", "LovePotion",
-    "ToyBear", "DiamondRing", "TopHat", "SleighBell", "RecordPlayer", "SakuraFlower"
+    "ToyBear", "DiamondRing", "TopHat", "SleighBell", "RecordPlayer", "SakuraFlower", "SnowGlobe", "WinterWreath",
+    "TamaGadget", "CandyCane", "ElectricSkull"
 ]
 
 for gift_name in gift_names:
@@ -326,7 +334,7 @@ async def update_main_menu(user_id, message_id):
         start_message = """Gifts Minter готов к вашим услугам!
 
 В VIP плане у вас открыт доступ к абсолютно всем функциям бота. Спасибо за оформление VIP статуса!"""
-    else:
+    elif has_access(user_id):
         start_message = """Gifts Minter готов к вашим услугам!
 
 В базовом тарифе вам доступно получение уведомлений о новых минтах (до 1000 уведомлений в день)
@@ -334,14 +342,19 @@ async def update_main_menu(user_id, message_id):
 Чтобы получить безлимитное получение уведомлений и доступ к поиску подарков по номеру - перейдите на VIP план за 75 звезд
 
 Купить VIP статус - @BuyVIPMinterBot"""
+    else:
+        start_message = f"""Добро пожаловать в Gifts Minter!
+
+На данный момент у вас включен пробный план, который дает доступ взглянуть на работу бота
+
+У вас осталось {users_notifications_left.get(user_id, TRIAL_NOTIFICATIONS)} уведомлений, купите полный доступ к боту здесь - @BuyGiftsMinterBot"""
 
     notification_button_text = "❌ Отключить уведомления" if users_status[user_id]['status'] == 'active' else "✅ Включить уведомления"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=notification_button_text, callback_data="toggle_notifications")],
-        [InlineKeyboardButton(text="🔔 Настроить уведомления", callback_data="configure_notifications")],
+        [InlineKeyboardButton(text="🔔 Фильтр уведомлений", callback_data="configure_notifications")],
         [InlineKeyboardButton(text="🔍 Искать подарки", callback_data="search_gifts")],
-        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile"),
-         InlineKeyboardButton(text="🔗 Реф. система", callback_data="referral_system")]
+        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")]
     ])
     await bot.edit_message_text(chat_id=user_id, message_id=message_id, text=start_message, reply_markup=keyboard)
 
@@ -356,6 +369,9 @@ async def addtgid_command(message: types.Message):
             for user_id in user_ids:
                 new_user_id = int(user_id)
                 allowed_users.add(new_user_id)
+                # Сброс баланса уведомлений
+                users_notifications_left[new_user_id] = INITIAL_NOTIFICATIONS
+                users_last_reset_time[new_user_id] = datetime.now()
                 # Получаем username нового пользователя
                 new_user = await bot.get_chat(new_user_id)
                 all_users[new_user_id] = new_user.username
@@ -379,6 +395,8 @@ async def addvip_command(message: types.Message):
             for user_id in user_ids:
                 new_vip_id = int(user_id)
                 vip_users.add(new_vip_id)
+                # Сброс баланса уведомлений
+                users_notifications_left[new_vip_id] = float('inf')  # Бесконечное количество уведомлений
                 # Получаем username нового пользователя
                 new_vip_user = await bot.get_chat(new_vip_id)
                 all_vip_users[new_vip_id] = new_vip_user.username
@@ -432,13 +450,17 @@ async def referral_system_callback(callback_query: types.CallbackQuery):
 async def profile_callback(callback_query: types.CallbackQuery):
     user_id = callback_query.from_user.id
     user = await bot.get_chat(user_id)
-    status = "VIP" if is_vip(user_id) else "Базовый"
-    username = f"@{user.username}" if user.username else "отсутствует"
-    if status == "VIP":
+    if is_vip(user_id):
+        status = "VIP"
         notifications_info = "У вас безлимитное количество уведомлений"
-    else:
+    elif has_access(user_id):
+        status = "Базовый"
         notifications_info = f"Осталось уведомлений: {users_notifications_left.get(user_id, INITIAL_NOTIFICATIONS)}"
+    else:
+        status = "Пробный план"
+        notifications_info = f"Осталось уведомлений: {users_notifications_left.get(user_id, TRIAL_NOTIFICATIONS)}"
 
+    username = f"@{user.username}" if user.username else "отсутствует"
     profile_text = f"""👤 Профиль
 
 Имя: {user.full_name}

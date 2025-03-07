@@ -278,7 +278,8 @@ async def configure_notifications_callback(callback_query: types.CallbackQuery):
 🆕 /WinterWreath
 🆕 /TamaGadget
 🆕 /CandyCane
-🆕 /ElectricSkull""", reply_markup=keyboard)
+🆕 /ElectricSkull
+🆕 /NekoHelmet""", reply_markup=keyboard)
         else:
             keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")]])
             await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
@@ -296,7 +297,7 @@ def create_gift_command(gift_name):
                 return
             # Сохраняем chat_id пользователя и устанавливаем статус 'active' с фильтром gift_name
             users_status[message.from_user.id] = {'chat_id': message.chat.id, 'status': 'active', 'filter': gift_name}
-            await message.reply(f"""✅ Фильтр уведомлений успешно включен для подарка *{gift_name}* на следующие 5 минут""")
+            await message.reply(f"""✅ Фильтр уведомлений успешно включен для подарка {gift_name} на следующие 5 минут""")
             # Запускаем таймер на остановку уведомлений через 5 минут
             if message.from_user.id in stop_timers:
                 stop_timers[message.from_user.id].cancel()
@@ -313,7 +314,7 @@ gift_names = [
     "VoodooDoll", "MadPumpkin", "HypnoLollipop", "BDayCandle", "BunnyMuffin", "AstralShard", "FlyingBroom", "CrystalBall",
     "EternalCandle", "SwissWatch", "GingerCookie", "MiniOscar", "LolPop", "IonGem", "StarNotepad", "LootBag", "LovePotion",
     "ToyBear", "DiamondRing", "TopHat", "SleighBell", "RecordPlayer", "SakuraFlower", "SnowGlobe", "WinterWreath",
-    "TamaGadget", "CandyCane", "ElectricSkull"
+    "TamaGadget", "CandyCane", "ElectricSkull", "NekoHelmet"
 ]
 
 for gift_name in gift_names:

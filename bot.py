@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 sio = socketio.AsyncClient()
 
 # Токен вашего бота Telegram
-TELEGRAM_TOKEN = '8044348316:AAFLsqU_IVvxZqCqfciNyGH5_48k4rLfKwg'
+TELEGRAM_TOKEN = '8133398219:AAHm9q7rIaNf1ovb6TY4hdpMNuzWPPsumc4'
 
 # Инициализируем бота
 bot = Bot(token=TELEGRAM_TOKEN)
@@ -180,7 +180,7 @@ async def start_command(message: types.Message):
         [InlineKeyboardButton(text=notification_button_text, callback_data="toggle_notifications")],
         [InlineKeyboardButton(text="🔔 Фильтр уведомлений", callback_data="configure_notifications")],
         [InlineKeyboardButton(text="🔍 Искать подарки", callback_data="search_gifts")],
-        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")]
+        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile"), InlineKeyboardButton(text="🧑‍💻 Поддержка", callback_data="support")]
     ])
     sent_message = await message.reply(start_message, reply_markup=keyboard)
     users_status[message.from_user.id] = {'chat_id': message.chat.id, 'status': users_status.get(message.from_user.id, {}).get('status', 'inactive'), 'message_id': sent_message.message_id}
@@ -213,79 +213,43 @@ async def configure_notifications_callback(callback_query: types.CallbackQuery):
     user_id = callback_query.from_user.id
     if has_access(user_id):
         if is_vip(user_id):
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")]])
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")]
+            ])
             await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
-            await bot.send_message(user_id, """Введите название подарка чтобы получать уведомления только об определенном подарке когда его минтят
+            await bot.send_message(user_id, """🎁 *Все владельцы VIP плана могут присоединиться к частной группе*
 
-Список подарков:
+В группе рассортированы топики, с каждым NFT подарком, и вы можете выбрать на какой будете получать уведомления, либо просто можете следить за определенными подарками
 
-/SantaHat  
-/SignetRing  
-/PreciousPeach  
-/PlushPepe  
-/SpicedWine  
-/JellyBunny  
-/DurovsCap  
-/PerfumeBottle  
-/EternalRose  
-/BerryBox  
-/VintageCigar  
-/MagicPotion  
-/KissedFrog  
-/HexPot  
-/EvilEye  
-/SharpTongue  
-/TrappedHeart  
-/SkullFlower  
-/ScaredCat  
-/SpyAgaric  
-/HomemadeCake  
-/GenieLamp  
-/LunarSnake  
-/PartySparkler  
-/JesterHat  
-/WitchHat  
-/HangingStar  
-/LoveCandle  
-/CookieHeart  
-/DeskCalendar  
-/JingleBells  
-/SnowMittens  
-/VoodooDoll  
-/MadPumpkin  
-/HypnoLollipop  
-/BDayCandle  
-/BunnyMuffin  
-/AstralShard  
-/FlyingBroom  
-/CrystalBall  
-/EternalCandle  
-/SwissWatch  
-/GingerCookie  
-/MiniOscar 
-/LolPop  
-/IonGem  
-/StarNotepad  
-/LootBag  
-/LovePotion  
-/ToyBear  
-/DiamondRing  
-/TopHat
-/SleighBell
-/RecordPlayer
-/SakuraFlower
-🆕 /SnowGlobe
-🆕 /WinterWreath
-🆕 /TamaGadget
-🆕 /CandyCane
-🆕 /ElectricSkull
-🆕 /NekoHelmet""", reply_markup=keyboard)
+Напишите в ЛС нашему администратору, чтобы он выдал вам ссылку на данную группу, чтобы отправить сообщение администратору, просто нажмите на ссылку: https://t.me/m/k3V2OgINNDUy""", parse_mode='Markdown', reply_markup=keyboard)
         else:
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")]])
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")]
+            ])
             await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
-            await bot.send_message(user_id, """🔔 Фильтрация уведомлений доступна только в VIP плане
+            await bot.send_message(user_id, """Все владельцы VIP плана могут вступить в нашу частную группу с рассортированными топиками с NFT подарками
 
-Приобретите VIP статус здесь: @BuyVIPMinterBot""", reply_markup=keyboard)
+Купите VIP план здесь: @BuyVIPMinterBot""", reply_markup=keyboard)
+    else:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")]
+        ])
+        await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+        await bot.send_message(user_id, """Все владельцы VIP плана могут вступить в нашу частную группу с рассортированными топиками с NFT подарками
+
+Купите VIP план здесь: @BuyVIPMinterBot""", reply_markup=keyboard)
+
+# Обработчик для кнопки "Поддержка"
+@dp.callback_query(lambda c: c.data == 'support')
+async def support_callback(callback_query: types.CallbackQuery):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🧑‍💻 Поддержка", url="https://t.me/asteroalex")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_start")]
+    ])
+    await bot.delete_message(chat_id=callback_query.message.chat.id, message_id=callback_query.message.message_id)
+    await bot.send_message(callback_query.from_user.id, """🧑‍💻 *Связь с поддержкой*
+
+Если у вас возникли какие-то вопросы или проблемы в использовании бота - можете смело обращаться к @AsteroAlex""", parse_mode='Markdown', reply_markup=keyboard)
 
 # Функция для создания команды для каждого gift_name
 def create_gift_command(gift_name):
@@ -355,7 +319,7 @@ async def update_main_menu(user_id, message_id):
         [InlineKeyboardButton(text=notification_button_text, callback_data="toggle_notifications")],
         [InlineKeyboardButton(text="🔔 Фильтр уведомлений", callback_data="configure_notifications")],
         [InlineKeyboardButton(text="🔍 Искать подарки", callback_data="search_gifts")],
-        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")]
+        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile"), InlineKeyboardButton(text="🧑‍💻 Поддержка", callback_data="support")]
     ])
     await bot.edit_message_text(chat_id=user_id, message_id=message_id, text=start_message, reply_markup=keyboard)
 
